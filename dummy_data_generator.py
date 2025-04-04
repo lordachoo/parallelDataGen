@@ -5,6 +5,8 @@ import threading
 import argparse
 import json
 import sys
+import platform
+import psutil
 from pathlib import Path
 from time import time
 from datetime import datetime
@@ -98,7 +100,12 @@ class DummyDataGenerator:
                     'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
                     'start_time': self.start_time.isoformat() if self.start_time else None,
                     'python_version': '.'.join(map(str, sys.version_info[:3])),
-                    'platform': sys.platform
+                    'platform': sys.platform,
+                    'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+                    'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
+                    'cpu_model': platform.processor(),
+                    'cpu_cores': psutil.cpu_count(logical=False),
+                    'cpu_threads': psutil.cpu_count(logical=True)
                 }
             }
             
