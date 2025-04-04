@@ -105,37 +105,38 @@ class DummyDataGenerator:
                         throughput = data_mb / time_diff  # MB/s
                 
                 status['nodes'][str(self.node_id)] = {
-                'files_created': self.files_created,
-                'percent_complete': (self.files_created / self.num_files) * 100,
-                'last_update': current_time,
-                'throughput_mb_s': throughput,
-                'node_metadata': {
-                    'node_id': self.node_id,
-                    'node_count': self.node_count,
-                    'thread_count': self.thread_count,
-                    'file_size_kb': self.file_size_bytes / 1024,
-                    'target_files': self.num_files,
-                    'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
-                    'start_time': self.start_time.isoformat() if self.start_time else None,
-                    'python_version': '.'.join(map(str, sys.version_info[:3])),
-                    'platform': sys.platform,
-                    'cpu_model': platform.processor(),
-                    **({
-                        'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
-                        'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
-                        'cpu_cores': psutil.cpu_count(logical=False),
-                        'cpu_threads': psutil.cpu_count(logical=True)
-                    } if PSUTIL_AVAILABLE else {
-                        'psutil_missing': True,
-                        'cpu_cores': os.cpu_count() or 'unknown',
-                        'cpu_threads': os.cpu_count() or 'unknown'
-                    })
+                    'files_created': self.files_created,
+                    'percent_complete': (self.files_created / self.num_files) * 100,
+                    'last_update': current_time,
+                    'throughput_mb_s': throughput,
+                    'node_metadata': {
+                        'node_id': self.node_id,
+                        'node_count': self.node_count,
+                        'thread_count': self.thread_count,
+                        'file_size_kb': self.file_size_bytes / 1024,
+                        'target_files': self.num_files,
+                        'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
+                        'start_time': self.start_time.isoformat() if self.start_time else None,
+                        'python_version': '.'.join(map(str, sys.version_info[:3])),
+                        'platform': sys.platform,
+                        'cpu_model': platform.processor(),
+                        **({
+                            'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+                            'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
+                            'cpu_cores': psutil.cpu_count(logical=False),
+                            'cpu_threads': psutil.cpu_count(logical=True)
+                        } if PSUTIL_AVAILABLE else {
+                            'psutil_missing': True,
+                            'cpu_cores': os.cpu_count() or 'unknown',
+                            'cpu_threads': os.cpu_count() or 'unknown'
+                        })
+                    }
                 }
                 
                 self.last_update_time = now
                 
                 # Calculate aggregate stats
-            total_throughput = 0.0
+                total_throughput = 0.0
             active_nodes = 0
             total_files = 0
             
