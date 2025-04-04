@@ -6,7 +6,13 @@ import argparse
 import json
 import sys
 import platform
-import psutil
+
+# Optional psutil import for enhanced system metrics
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 from pathlib import Path
 from time import time
 from datetime import datetime
@@ -101,11 +107,17 @@ class DummyDataGenerator:
                     'start_time': self.start_time.isoformat() if self.start_time else None,
                     'python_version': '.'.join(map(str, sys.version_info[:3])),
                     'platform': sys.platform,
-                    'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
-                    'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
                     'cpu_model': platform.processor(),
-                    'cpu_cores': psutil.cpu_count(logical=False),
-                    'cpu_threads': psutil.cpu_count(logical=True)
+                    **({
+                        'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+                        'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
+                        'cpu_cores': psutil.cpu_count(logical=False),
+                        'cpu_threads': psutil.cpu_count(logical=True)
+                    } if PSUTIL_AVAILABLE else {
+                        'psutil_missing': True,
+                        'cpu_cores': os.cpu_count() or 'unknown',
+                        'cpu_threads': os.cpu_count() or 'unknown'
+                    })
                 }
             }
             
