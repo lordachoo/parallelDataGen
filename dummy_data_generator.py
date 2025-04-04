@@ -57,7 +57,7 @@ class DummyDataGenerator:
                 print(f"Created {file_path} ({self.file_size_bytes/1024:.2f} KB)")
                 self.files_created += 1
                 if self.files_created % 10 == 0:  # Update status every 10 files
-                    self.update_shared_status()
+                    self.update_node_status()
         except Exception as e:
             print(f"Error creating {file_path}: {e}")
 
