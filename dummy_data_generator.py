@@ -137,21 +137,21 @@ class DummyDataGenerator:
                 
                 # Calculate aggregate stats
                 total_throughput = 0.0
-            active_nodes = 0
-            total_files = 0
-            
-            for node_id, node_data in status['nodes'].items():
-                if node_data.get('throughput_mb_s') is not None:
-                    total_throughput += node_data['throughput_mb_s']
-                    active_nodes += 1
-                total_files += node_data['files_created']
-            
-            status['aggregate_stats'] = {
-                'total_throughput_mb_s': round(total_throughput, 2),
-                'active_nodes': active_nodes,
-                'total_files_created': total_files,
-                'percent_complete': round((total_files / status['total_files']) * 100, 1)
-            }
+                active_nodes = 0
+                total_files = 0
+                
+                for node_id, node_data in status['nodes'].items():
+                    if node_data.get('throughput_mb_s') is not None:
+                        total_throughput += node_data['throughput_mb_s']
+                        active_nodes += 1
+                    total_files += node_data['files_created']
+                
+                status['aggregate_stats'] = {
+                    'total_throughput_mb_s': round(total_throughput, 2),
+                    'active_nodes': active_nodes,
+                    'total_files_created': total_files,
+                    'percent_complete': round((total_files / status['total_files']) * 100, 1)
+                }
             
                 # Write back to file (with exclusive lock)
                 temp_file = self.status_file.with_suffix('.tmp')
