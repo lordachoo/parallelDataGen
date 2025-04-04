@@ -8,7 +8,7 @@ from time import time
 from multiprocessing import cpu_count
 
 class DummyDataGenerator:
-    def __init__(self, output_dir, num_files, file_size_mb, thread_count=None):
+    def __init__(self, output_dir, num_files, file_size_kb, thread_count=None):
         self.output_dir = Path(output_dir)
         self.num_files = num_files
         self.file_size_bytes = file_size_kb * 1024
