@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 from time import time
+from datetime import datetime
 from multiprocessing import cpu_count
 
 class DummyDataGenerator:
@@ -19,6 +20,8 @@ class DummyDataGenerator:
         self.node_count = node_count
         self.status_file = self.output_dir / ".dummy_data_status.json"
         self.files_created = 0
+        self.start_time = None
+        self.last_update_time = None
         
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -69,11 +72,27 @@ class DummyDataGenerator:
                         status['nodes'].update(existing['nodes'])
             
             # Update our node's status
+            now = datetime.utcnow()
+            current_time = now.isoformat()
+            
+            # Calculate throughput if we have previous data
+            throughput = None
+            if self.last_update_time and self.files_created > 0:
+                time_diff = (now - self.last_update_time).total_seconds()
+                if time_diff > 0:
+                    data_mb = (self.file_size_bytes * 10) / (1024 * 1024)  # 10 files since last update
+                    throughput = data_mb / time_diff  # MB/s
+            
             status['nodes'][str(self.node_id)] = {
                 'files_created': self.files_created,
                 'percent_complete': (self.files_created / self.num_files) * 100,
-                'last_update': datetime.utcnow().isoformat()
+                'last_update': current_time,
+                'throughput_mb_s': throughput,
+                'node_id': self.node_id,
+                'thread_count': self.thread_count
             }
+            
+            self.last_update_time = now
             
             # Write back to file
             with open(self.status_file, 'w') as f:
@@ -83,6 +102,8 @@ class DummyDataGenerator:
 
     def run(self):
         """Run the generation process with threading"""
+        self.start_time = datetime.utcnow()
+        self.last_update_time = self.start_time
         # Write initial status
         self.update_shared_status()
         print(f"Starting generation of {self.num_files} files ({self.file_size_bytes/1024:.2f} KB each)")
