@@ -81,6 +81,7 @@ class DummyDataGenerator:
                 'percent_complete': (self.files_created / self.num_files) * 100,
                 'last_update': current_time,
                 'throughput_mb_s': throughput,
+                'files_per_sec': throughput / (self.file_size_bytes / (1024 * 1024)) if throughput else None,
                 'node_metadata': {
                     'node_id': self.node_id,
                     'node_count': self.node_count,
@@ -129,6 +130,7 @@ class DummyDataGenerator:
             'nodes': {},
             'aggregate_stats': {
                 'total_throughput_mb_s': 0.0,
+                'total_files_per_sec': 0.0,
                 'active_nodes': 0,
                 'total_files_created': 0,
                 'percent_complete': 0.0
@@ -148,6 +150,8 @@ class DummyDataGenerator:
                     # Update aggregate stats
                     if node_status.get('throughput_mb_s') is not None:
                         status['aggregate_stats']['total_throughput_mb_s'] += node_status['throughput_mb_s']
+                        if node_status.get('files_per_sec'):
+                            status['aggregate_stats']['total_files_per_sec'] += node_status['files_per_sec']
                         status['aggregate_stats']['active_nodes'] += 1
                     status['aggregate_stats']['total_files_created'] += node_status['files_created']
                     
@@ -209,6 +213,7 @@ class DummyDataGenerator:
             print(f"- Completion: {status['aggregate_stats']['percent_complete']}%")
             print(f"- Active nodes: {status['aggregate_stats']['active_nodes']}/{self.node_count}")
             print(f"- Total throughput: {status['aggregate_stats']['total_throughput_mb_s']:.2f} MB/s")
+            print(f"- Files per second: {status['aggregate_stats']['total_files_per_sec']:.2f} files/s")
         except Exception as e:
             print(f"Warning: Could not generate cluster status - {e}")
         print(f"Total data generated: {total_size_gb:.2f} GB")
