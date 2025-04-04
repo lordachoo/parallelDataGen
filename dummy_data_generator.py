@@ -69,7 +69,12 @@ class DummyDataGenerator:
             'nodes': {},
             'timestamp': datetime.utcnow().isoformat(),
             'total_files': self.num_files * self.node_count,
-            'file_size_kb': self.file_size_bytes / 1024
+            'file_size_kb': self.file_size_bytes / 1024,
+            'aggregate_stats': {
+                'total_throughput_mb_s': 0.0,
+                'active_nodes': 0,
+                'total_files_created': 0
+            }
         }
         
         try:
@@ -122,6 +127,24 @@ class DummyDataGenerator:
             }
             
             self.last_update_time = now
+            
+            # Calculate aggregate stats
+            total_throughput = 0.0
+            active_nodes = 0
+            total_files = 0
+            
+            for node_id, node_data in status['nodes'].items():
+                if node_data.get('throughput_mb_s') is not None:
+                    total_throughput += node_data['throughput_mb_s']
+                    active_nodes += 1
+                total_files += node_data['files_created']
+            
+            status['aggregate_stats'] = {
+                'total_throughput_mb_s': round(total_throughput, 2),
+                'active_nodes': active_nodes,
+                'total_files_created': total_files,
+                'percent_complete': round((total_files / status['total_files']) * 100, 1)
+            }
             
             # Write back to file
             with open(self.status_file, 'w') as f:
