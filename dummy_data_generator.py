@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+import os
+import random
+import threading
+import argparse
+from pathlib import Path
+from time import time
+from multiprocessing import cpu_count
+
+class DummyDataGenerator:
+    def __init__(self, output_dir, num_files, file_size_mb, thread_count=None):
+        self.output_dir = Path(output_dir)
+        self.num_files = num_files
+        self.file_size_bytes = file_size_mb * 1024 * 1024
+        self.thread_count = thread_count or cpu_count()
+        self.lock = threading.Lock()
+        
+        # Create output directory if it doesn't exist
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate_random_data(self, size):
+        """Generate random binary data of given size"""
+        return bytes(random.getrandbits(8) for _ in range(size))
+
+    def create_file(self, file_num):
+        """Create a single dummy file"""
+        file_path = self.output_dir / f"dummy_{file_num}.dat"
+        try:
+            with open(file_path, 'wb') as f:
+                f.write(self.generate_random_data(self.file_size_bytes))
+            with self.lock:
+                print(f"Created {file_path} ({self.file_size_bytes/(1024*1024):.2f} MB)")
+        except Exception as e:
+            print(f"Error creating {file_path}: {e}")
+
+    def run(self):
+        """Run the generation process with threading"""
+        print(f"Starting generation of {self.num_files} files ({self.file_size_bytes/(1024*1024):.2f} MB each)")
+        print(f"Using {self.thread_count} threads")
+        
+        start_time = time()
+        threads = []
+        
+        # Distribute files across threads
+        files_per_thread = self.num_files // self.thread_count
+        remaining_files = self.num_files % self.thread_count
+        
+        for i in range(self.thread_count):
+            # Calculate files for this thread
+            files_to_create = files_per_thread + (1 if i < remaining_files else 0)
+            if files_to_create == 0:
+                continue
+                
+            # Create and start thread
+            start_num = i * files_per_thread + min(i, remaining_files)
+            t = threading.Thread(
+                target=self.create_files_batch,
+                args=(start_num, files_to_create)
+            )
+            threads.append(t)
+            t.start()
+        
+        # Wait for all threads to complete
+        for t in threads:
+            t.join()
+            
+        total_size_gb = (self.num_files * self.file_size_bytes) / (1024**3)
+        elapsed = time() - start_time
+        print(f"\nCompleted in {elapsed:.2f} seconds")
+        print(f"Total data generated: {total_size_gb:.2f} GB")
+        print(f"Throughput: {total_size_gb/elapsed:.2f} GB/s")
+
+    def create_files_batch(self, start_num, count):
+        """Create a batch of files (used by threads)"""
+        for i in range(start_num, start_num + count):
+            self.create_file(i)
+
+def main():
+    parser = argparse.ArgumentParser(description='Parallel dummy data generator')
+    parser.add_argument('output_dir', help='Output directory for dummy files')
+    parser.add_argument('-n', '--num-files', type=int, default=100,
+                       help='Number of files to generate (default: 100)')
+    parser.add_argument('-s', '--size-mb', type=int, default=10,
+                       help='Size of each file in MB (default: 10)')
+    parser.add_argument('-t', '--threads', type=int,
+                       help='Number of threads to use (default: CPU count)')
+    
+    args = parser.parse_args()
+    
+    generator = DummyDataGenerator(
+        output_dir=args.output_dir,
+        num_files=args.num_files,
+        file_size_mb=args.size_mb,
+        thread_count=args.threads
+    )
+    generator.run()
+
+if __name__ == '__main__':
+    main()
