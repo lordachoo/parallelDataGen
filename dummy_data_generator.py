@@ -8,12 +8,14 @@ from time import time
 from multiprocessing import cpu_count
 
 class DummyDataGenerator:
-    def __init__(self, output_dir, num_files, file_size_kb, thread_count=None):
+    def __init__(self, output_dir, num_files, file_size_kb, thread_count=None, node_id=0, node_count=1):
         self.output_dir = Path(output_dir)
         self.num_files = num_files
         self.file_size_bytes = file_size_kb * 1024
         self.thread_count = thread_count or cpu_count()
         self.lock = threading.Lock()
+        self.node_id = node_id
+        self.node_count = node_count
         
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -24,7 +26,14 @@ class DummyDataGenerator:
 
     def create_file(self, file_num):
         """Create a single dummy file"""
-        file_path = self.output_dir / f"dummy_{file_num}.dat"
+        global_num = (file_num * self.node_count) + self.node_id
+        file_path = self.output_dir / f"dummy_n{self.node_id}_{global_num}.dat"
+        
+        # Check if file exists (in case of overlapping runs)
+        if file_path.exists():
+            with self.lock:
+                print(f"Warning: {file_path} already exists, skipping")
+            return
         try:
             with open(file_path, 'wb') as f:
                 f.write(self.generate_random_data(self.file_size_bytes))
@@ -79,11 +88,15 @@ def main():
     parser = argparse.ArgumentParser(description='Parallel dummy data generator')
     parser.add_argument('output_dir', help='Output directory for dummy files')
     parser.add_argument('-n', '--num-files', type=int, default=100,
-                       help='Number of files to generate (default: 100)')
+                       help='Number of files to generate per node (default: 100)')
     parser.add_argument('-s', '--size-kb', type=int, default=10240,
                        help='Size of each file in KB (default: 10240 = 10MB)')
     parser.add_argument('-t', '--threads', type=int,
                        help='Number of threads to use (default: CPU count)')
+    parser.add_argument('--node-id', type=int, default=0,
+                       help='Node identifier (0-based) for distributed runs')
+    parser.add_argument('--node-count', type=int, default=1,
+                       help='Total number of nodes in distributed run')
     
     args = parser.parse_args()
     
@@ -91,7 +104,9 @@ def main():
         output_dir=args.output_dir,
         num_files=args.num_files,
         file_size_kb=args.size_kb,
-        thread_count=args.threads
+        thread_count=args.threads,
+        node_id=args.node_id,
+        node_count=args.node_count
     )
     generator.run()
 
