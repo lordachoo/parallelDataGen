@@ -11,7 +11,7 @@ class DummyDataGenerator:
     def __init__(self, output_dir, num_files, file_size_mb, thread_count=None):
         self.output_dir = Path(output_dir)
         self.num_files = num_files
-        self.file_size_bytes = file_size_mb * 1024 * 1024
+        self.file_size_bytes = file_size_kb * 1024
         self.thread_count = thread_count or cpu_count()
         self.lock = threading.Lock()
         
@@ -29,13 +29,13 @@ class DummyDataGenerator:
             with open(file_path, 'wb') as f:
                 f.write(self.generate_random_data(self.file_size_bytes))
             with self.lock:
-                print(f"Created {file_path} ({self.file_size_bytes/(1024*1024):.2f} MB)")
+                print(f"Created {file_path} ({self.file_size_bytes/1024:.2f} KB)")
         except Exception as e:
             print(f"Error creating {file_path}: {e}")
 
     def run(self):
         """Run the generation process with threading"""
-        print(f"Starting generation of {self.num_files} files ({self.file_size_bytes/(1024*1024):.2f} MB each)")
+        print(f"Starting generation of {self.num_files} files ({self.file_size_bytes/1024:.2f} KB each)")
         print(f"Using {self.thread_count} threads")
         
         start_time = time()
@@ -80,8 +80,8 @@ def main():
     parser.add_argument('output_dir', help='Output directory for dummy files')
     parser.add_argument('-n', '--num-files', type=int, default=100,
                        help='Number of files to generate (default: 100)')
-    parser.add_argument('-s', '--size-mb', type=int, default=10,
-                       help='Size of each file in MB (default: 10)')
+    parser.add_argument('-s', '--size-kb', type=int, default=10240,
+                       help='Size of each file in KB (default: 10240 = 10MB)')
     parser.add_argument('-t', '--threads', type=int,
                        help='Number of threads to use (default: CPU count)')
     
@@ -90,7 +90,7 @@ def main():
     generator = DummyDataGenerator(
         output_dir=args.output_dir,
         num_files=args.num_files,
-        file_size_mb=args.size_mb,
+        file_size_kb=args.size_kb,
         thread_count=args.threads
     )
     generator.run()
