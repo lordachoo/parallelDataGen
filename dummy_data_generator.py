@@ -28,7 +28,7 @@ class DummyDataGenerator:
         self.lock = threading.Lock()
         self.node_id = node_id
         self.node_count = node_count
-        self.status_file = self.output_dir / ".dummy_data_status.json"
+        self.status_file = self.output_dir / f".dummy_data_status_node{self.node_id}.json"
         self.files_created = 0
         self.start_time = None
         self.last_update_time = None
@@ -61,123 +61,111 @@ class DummyDataGenerator:
         except Exception as e:
             print(f"Error creating {file_path}: {e}")
 
-    def update_shared_status(self, max_retries=3):
-        """Update shared status file with current progress"""
-        import json
-        from datetime import datetime
-        import fcntl  # For file locking
-        
-        for attempt in range(max_retries):
-            try:
-                status = {
-                    'nodes': {},
-                    'timestamp': datetime.utcnow().isoformat(),
-                    'total_files': self.num_files * self.node_count,
-                    'file_size_kb': self.file_size_bytes / 1024,
-                    'aggregate_stats': {
-                        'total_throughput_mb_s': 0.0,
-                        'active_nodes': 0,
-                        'total_files_created': 0
-                    }
-                }
-                
-                # Read existing status if available (with file locking)
-                if self.status_file.exists():
-                    with open(self.status_file, 'r+') as f:
-                        try:
-                            fcntl.flock(f, fcntl.LOCK_SH)  # Shared lock for reading
-                            existing = json.load(f)
-                            if 'nodes' in existing:
-                                status['nodes'].update(existing['nodes'])
-                        finally:
-                            fcntl.flock(f, fcntl.LOCK_UN)  # Release lock
-
-                # Update our node's status
-                now = datetime.utcnow()
-                current_time = now.isoformat()
-                
-                # Calculate throughput if we have previous data
-                throughput = None
-                if self.last_update_time and self.files_created > 0:
-                    time_diff = (now - self.last_update_time).total_seconds()
-                    if time_diff > 0:
-                        data_mb = (self.file_size_bytes * 10) / (1024 * 1024)  # 10 files since last update
-                        throughput = data_mb / time_diff  # MB/s
-                
-                status['nodes'][str(self.node_id)] = {
-                    'files_created': self.files_created,
-                    'percent_complete': (self.files_created / self.num_files) * 100,
-                    'last_update': current_time,
-                    'throughput_mb_s': throughput,
-                    'node_metadata': {
-                        'node_id': self.node_id,
-                        'node_count': self.node_count,
-                        'thread_count': self.thread_count,
-                        'file_size_kb': self.file_size_bytes / 1024,
-                        'target_files': self.num_files,
-                        'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
-                        'start_time': self.start_time.isoformat() if self.start_time else None,
-                        'python_version': '.'.join(map(str, sys.version_info[:3])),
-                        'platform': sys.platform,
-                        'cpu_model': platform.processor(),
-                        **({
-                            'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
-                            'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
-                            'cpu_cores': psutil.cpu_count(logical=False),
-                            'cpu_threads': psutil.cpu_count(logical=True)
-                        } if PSUTIL_AVAILABLE else {
-                            'psutil_missing': True,
-                            'cpu_cores': os.cpu_count() or 'unknown',
-                            'cpu_threads': os.cpu_count() or 'unknown'
-                        })
-                    }
-                }
-                
-                self.last_update_time = now
-                
-                # Calculate aggregate stats
-                total_throughput = 0.0
-                active_nodes = 0
-                total_files = 0
-                
-                for node_id, node_data in status['nodes'].items():
-                    if node_data.get('throughput_mb_s') is not None:
-                        total_throughput += node_data['throughput_mb_s']
-                        active_nodes += 1
-                    total_files += node_data['files_created']
-                
-                status['aggregate_stats'] = {
-                    'total_throughput_mb_s': round(total_throughput, 2),
-                    'active_nodes': active_nodes,
-                    'total_files_created': total_files,
-                    'percent_complete': round((total_files / status['total_files']) * 100, 1)
-                }
+    def update_node_status(self):
+        """Update this node's status file"""
+        try:
+            now = datetime.utcnow()
+            current_time = now.isoformat()
             
-                # Write back to file (with exclusive lock)
-                temp_file = self.status_file.with_suffix('.tmp')
-                with open(temp_file, 'w') as f:
-                    json.dump(status, f, indent=2)
-                    f.flush()
-                    os.fsync(f.fileno())
-                
-                # Atomic rename
-                os.replace(temp_file, self.status_file)
-                return  # Success
-                
-            except (json.JSONDecodeError, IOError) as e:
-                if attempt == max_retries - 1:
-                    print(f"Warning: Failed to update status file after {max_retries} attempts - {e}")
-                continue
+            # Calculate throughput if we have previous data
+            throughput = None
+            if self.last_update_time and self.files_created > 0:
+                time_diff = (now - self.last_update_time).total_seconds()
+                if time_diff > 0:
+                    data_mb = (self.file_size_bytes * 10) / (1024 * 1024)  # 10 files since last update
+                    throughput = data_mb / time_diff  # MB/s
+            
+            status = {
+                'node_id': self.node_id,
+                'files_created': self.files_created,
+                'percent_complete': (self.files_created / self.num_files) * 100,
+                'last_update': current_time,
+                'throughput_mb_s': throughput,
+                'node_metadata': {
+                    'node_id': self.node_id,
+                    'node_count': self.node_count,
+                    'thread_count': self.thread_count,
+                    'file_size_kb': self.file_size_bytes / 1024,
+                    'target_files': self.num_files,
+                    'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
+                    'start_time': self.start_time.isoformat() if self.start_time else None,
+                    'python_version': '.'.join(map(str, sys.version_info[:3])),
+                    'platform': sys.platform,
+                    'cpu_model': platform.processor(),
+                    **({
+                        'system_memory_gb': round(psutil.virtual_memory().total / (1024**3), 2),
+                        'available_memory_gb': round(psutil.virtual_memory().available / (1024**3), 2),
+                        'cpu_cores': psutil.cpu_count(logical=False),
+                        'cpu_threads': psutil.cpu_count(logical=True)
+                    } if PSUTIL_AVAILABLE else {
+                        'psutil_missing': True,
+                        'cpu_cores': os.cpu_count() or 'unknown',
+                        'cpu_threads': os.cpu_count() or 'unknown'
+                    })
+                }
+            }
+            
+            self.last_update_time = now
+            
+            # Write to temp file first
+            temp_file = self.status_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
+                json.dump(status, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Atomic rename
+            os.replace(temp_file, self.status_file)
+            
+        except Exception as e:
+            print(f"Warning: Could not update node status file - {e}")
+
+    def get_cluster_status(self):
+        """Aggregate status from all nodes"""
+        status = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'total_files': self.num_files * self.node_count,
+            'file_size_kb': self.file_size_bytes / 1024,
+            'nodes': {},
+            'aggregate_stats': {
+                'total_throughput_mb_s': 0.0,
+                'active_nodes': 0,
+                'total_files_created': 0,
+                'percent_complete': 0.0
+            }
+        }
+        
+        # Find all node status files
+        status_files = list(self.output_dir.glob('.dummy_data_status_node*.json'))
+        
+        for status_file in status_files:
+            try:
+                with open(status_file, 'r') as f:
+                    node_status = json.load(f)
+                    node_id = str(node_status['node_id'])
+                    status['nodes'][node_id] = node_status
+                    
+                    # Update aggregate stats
+                    if node_status.get('throughput_mb_s') is not None:
+                        status['aggregate_stats']['total_throughput_mb_s'] += node_status['throughput_mb_s']
+                        status['aggregate_stats']['active_nodes'] += 1
+                    status['aggregate_stats']['total_files_created'] += node_status['files_created']
+                    
             except Exception as e:
-                print(f"Warning: Unexpected error updating status file - {e}")
-                return
+                print(f"Warning: Could not read status file {status_file} - {e}")
+        
+        if status['nodes']:
+            status['aggregate_stats']['percent_complete'] = round(
+                (status['aggregate_stats']['total_files_created'] / status['total_files']) * 100, 1)
+        
+        return status
 
     def run(self):
         """Run the generation process with threading"""
         self.start_time = datetime.utcnow()
         self.last_update_time = self.start_time
         # Write initial status
-        self.update_shared_status()
+        self.update_node_status()
         print(f"Starting generation of {self.num_files} files ({self.file_size_bytes/1024:.2f} KB each)")
         print(f"Using {self.thread_count} threads")
         
@@ -210,20 +198,19 @@ class DummyDataGenerator:
         total_size_gb = (self.num_files * self.file_size_bytes) / (1024**3)
         elapsed = time() - start_time
         # Final status update
-        self.update_shared_status()
+        self.update_node_status()
         print(f"\nCompleted in {elapsed:.2f} seconds")
         
-        # Print summary from all nodes if available
+        # Print cluster-wide summary
         try:
-            if self.status_file.exists():
-                with open(self.status_file, 'r') as f:
-                    status = json.load(f)
-                    total_created = sum(n['files_created'] for n in status['nodes'].values())
-                    print(f"\nCluster-wide status:")
-                    print(f"- Total files created: {total_created}/{status['total_files']}")
-                    print(f"- Completion: {(total_created/status['total_files'])*100:.1f}%")
+            status = self.get_cluster_status()
+            print(f"\nCluster-wide status:")
+            print(f"- Total files created: {status['aggregate_stats']['total_files_created']}/{status['total_files']}")
+            print(f"- Completion: {status['aggregate_stats']['percent_complete']}%")
+            print(f"- Active nodes: {status['aggregate_stats']['active_nodes']}/{self.node_count}")
+            print(f"- Total throughput: {status['aggregate_stats']['total_throughput_mb_s']:.2f} MB/s")
         except Exception as e:
-            print(f"Warning: Could not read cluster status - {e}")
+            print(f"Warning: Could not generate cluster status - {e}")
         print(f"Total data generated: {total_size_gb:.2f} GB")
         print(f"Throughput: {total_size_gb/elapsed:.2f} GB/s")
 
