@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 import platform
+import fcntl
 
 # Optional psutil import for enhanced system metrics
 try:
@@ -60,30 +61,36 @@ class DummyDataGenerator:
         except Exception as e:
             print(f"Error creating {file_path}: {e}")
 
-    def update_shared_status(self):
+    def update_shared_status(self, max_retries=3):
         """Update shared status file with current progress"""
         import json
         from datetime import datetime
+        import fcntl  # For file locking
         
-        status = {
-            'nodes': {},
-            'timestamp': datetime.utcnow().isoformat(),
-            'total_files': self.num_files * self.node_count,
-            'file_size_kb': self.file_size_bytes / 1024,
-            'aggregate_stats': {
-                'total_throughput_mb_s': 0.0,
-                'active_nodes': 0,
-                'total_files_created': 0
-            }
-        }
-        
-        try:
-            # Read existing status if available
-            if self.status_file.exists():
-                with open(self.status_file, 'r') as f:
-                    existing = json.load(f)
-                    if 'nodes' in existing:
-                        status['nodes'].update(existing['nodes'])
+        for attempt in range(max_retries):
+            try:
+                status = {
+                    'nodes': {},
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'total_files': self.num_files * self.node_count,
+                    'file_size_kb': self.file_size_bytes / 1024,
+                    'aggregate_stats': {
+                        'total_throughput_mb_s': 0.0,
+                        'active_nodes': 0,
+                        'total_files_created': 0
+                    }
+                }
+                
+                # Read existing status if available (with file locking)
+                if self.status_file.exists():
+                    with open(self.status_file, 'r+') as f:
+                        try:
+                            fcntl.flock(f, fcntl.LOCK_SH)  # Shared lock for reading
+                            existing = json.load(f)
+                            if 'nodes' in existing:
+                                status['nodes'].update(existing['nodes'])
+                        finally:
+                            fcntl.flock(f, fcntl.LOCK_UN)  # Release lock
             
             # Update our node's status
             now = datetime.utcnow()
@@ -146,11 +153,24 @@ class DummyDataGenerator:
                 'percent_complete': round((total_files / status['total_files']) * 100, 1)
             }
             
-            # Write back to file
-            with open(self.status_file, 'w') as f:
-                json.dump(status, f, indent=2)
-        except Exception as e:
-            print(f"Warning: Could not update status file - {e}")
+                # Write back to file (with exclusive lock)
+                temp_file = self.status_file.with_suffix('.tmp')
+                with open(temp_file, 'w') as f:
+                    json.dump(status, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                
+                # Atomic rename
+                os.replace(temp_file, self.status_file)
+                return  # Success
+                
+            except (json.JSONDecodeError, IOError) as e:
+                if attempt == max_retries - 1:
+                    print(f"Warning: Failed to update status file after {max_retries} attempts - {e}")
+                continue
+            except Exception as e:
+                print(f"Warning: Unexpected error updating status file - {e}")
+                return
 
     def run(self):
         """Run the generation process with threading"""
