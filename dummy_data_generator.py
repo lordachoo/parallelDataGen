@@ -4,6 +4,7 @@ import random
 import threading
 import argparse
 import json
+import sys
 from pathlib import Path
 from time import time
 from datetime import datetime
@@ -88,8 +89,17 @@ class DummyDataGenerator:
                 'percent_complete': (self.files_created / self.num_files) * 100,
                 'last_update': current_time,
                 'throughput_mb_s': throughput,
-                'node_id': self.node_id,
-                'thread_count': self.thread_count
+                'node_metadata': {
+                    'node_id': self.node_id,
+                    'node_count': self.node_count,
+                    'thread_count': self.thread_count,
+                    'file_size_kb': self.file_size_bytes / 1024,
+                    'target_files': self.num_files,
+                    'hostname': os.uname().nodename if hasattr(os, 'uname') else 'unknown',
+                    'start_time': self.start_time.isoformat() if self.start_time else None,
+                    'python_version': '.'.join(map(str, sys.version_info[:3])),
+                    'platform': sys.platform
+                }
             }
             
             self.last_update_time = now
