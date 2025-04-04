@@ -91,20 +91,20 @@ class DummyDataGenerator:
                                 status['nodes'].update(existing['nodes'])
                         finally:
                             fcntl.flock(f, fcntl.LOCK_UN)  # Release lock
-            
-            # Update our node's status
-            now = datetime.utcnow()
-            current_time = now.isoformat()
-            
-            # Calculate throughput if we have previous data
-            throughput = None
-            if self.last_update_time and self.files_created > 0:
-                time_diff = (now - self.last_update_time).total_seconds()
-                if time_diff > 0:
-                    data_mb = (self.file_size_bytes * 10) / (1024 * 1024)  # 10 files since last update
-                    throughput = data_mb / time_diff  # MB/s
-            
-            status['nodes'][str(self.node_id)] = {
+
+                # Update our node's status
+                now = datetime.utcnow()
+                current_time = now.isoformat()
+                
+                # Calculate throughput if we have previous data
+                throughput = None
+                if self.last_update_time and self.files_created > 0:
+                    time_diff = (now - self.last_update_time).total_seconds()
+                    if time_diff > 0:
+                        data_mb = (self.file_size_bytes * 10) / (1024 * 1024)  # 10 files since last update
+                        throughput = data_mb / time_diff  # MB/s
+                
+                status['nodes'][str(self.node_id)] = {
                 'files_created': self.files_created,
                 'percent_complete': (self.files_created / self.num_files) * 100,
                 'last_update': current_time,
