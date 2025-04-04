@@ -131,11 +131,10 @@ class DummyDataGenerator:
                         'cpu_threads': os.cpu_count() or 'unknown'
                     })
                 }
-            }
-            
-            self.last_update_time = now
-            
-            # Calculate aggregate stats
+                
+                self.last_update_time = now
+                
+                # Calculate aggregate stats
             total_throughput = 0.0
             active_nodes = 0
             total_files = 0
