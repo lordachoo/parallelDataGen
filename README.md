@@ -29,20 +29,22 @@ pip install psutil  # Optional for enhanced system metrics
 
 ### Basic Single-Node Operation
 ```bash
-python dummy_data_generator.py /path/to/output -n 100 -s 1024
+python3 parallelDataGen -n 100 -s 1024 /path/to/output
 ```
 
 ### Multi-Node Operation
 Run on each node (with unique node-id):
 ```bash
 # On node 0:
-python dummy_data_generator.py /shared/output -n 100 --node-id 0 --node-count 3
+python3 parallelDataGen -n 100 --node-id 0 --node-count 3 /shared/output
 
 # On node 1:
-python dummy_data_generator.py /shared/output -n 100 --node-id 1 --node-count 3
+python3 parallelDataGen -n 100 --node-id 1 --node-count 3 /shared/output
 
 # On node 2:
-python dummy_data_generator.py /shared/output -n 100 --node-id 2 --node-count 3
+python3 parallelDataGen -n 100 --node-id 2 --node-count 3 /shared/output
+
+...
 ```
 
 ## Command Line Options
@@ -145,7 +147,6 @@ sbc1: Throughput: 0.00 GB/s
   - Implemented memory-mapped buffers for proper alignment
   - Automatic size adjustment to meet 4KB alignment requirements
   - Improved error handling for direct I/O operations
-  - Achieved up to 640 MB/s throughput with direct I/O on large files
 - Performance optimizations:
   - Switched to os.urandom() for faster random data generation
   - Improved buffer reuse across threads
