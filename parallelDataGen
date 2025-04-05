@@ -3,6 +3,8 @@ import os
 import random
 import threading
 import argparse
+
+__version__ = '1.1'
 import json
 import sys
 import platform
@@ -35,6 +37,8 @@ class DummyDataGenerator:
         
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Pre-generate random data buffer
+        self.data_buffer = self.generate_random_data(self.file_size_bytes)
 
     def generate_random_data(self, size):
         """Generate random binary data of given size"""
@@ -51,8 +55,9 @@ class DummyDataGenerator:
                 print(f"Warning: {file_path} already exists, skipping")
             return
         try:
-            with open(file_path, 'wb') as f:
-                f.write(self.generate_random_data(self.file_size_bytes))
+            # Use a larger buffer size for better performance
+            with open(file_path, 'wb', buffering=1024*1024) as f:
+                f.write(self.data_buffer)
             with self.lock:
                 print(f"Created {file_path} ({self.file_size_bytes/1024:.2f} KB)")
                 self.files_created += 1
@@ -81,7 +86,7 @@ class DummyDataGenerator:
                 'percent_complete': (self.files_created / self.num_files) * 100,
                 'last_update': current_time,
                 'throughput_mb_s': throughput,
-                'files_per_sec': throughput / (self.file_size_bytes / (1024 * 1024)) if throughput else None,
+                'files_per_sec': self.files_created / (now - self.start_time).total_seconds() if self.start_time else None,
                 'node_metadata': {
                     'node_id': self.node_id,
                     'node_count': self.node_count,
@@ -225,7 +230,10 @@ class DummyDataGenerator:
             self.create_file(i)
 
 def main():
-    parser = argparse.ArgumentParser(description='Parallel dummy data generator')
+    parser = argparse.ArgumentParser(
+        description='Parallel dummy data generator',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     parser.add_argument('output_dir', help='Output directory for dummy files')
     parser.add_argument('-n', '--num-files', type=int, default=100,
                        help='Number of files to generate per node (default: 100)')

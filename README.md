@@ -80,6 +80,44 @@ The script automatically shows cluster-wide status when complete, or you can run
 python -c "from dummy_data_generator import DummyDataGenerator; print(DummyDataGenerator('/path/to/output', 1, 1).get_cluster_status())"
 ```
 
+#### Example Output
+
+- Example parallel run on a SMALL, slow SBC cluster (5 nodes)
+
+```bash
+$ pdsh -w sbc[0-4] '/data/software/dummy-data-generator/parallelDataGen.py -n 1000 -s 100 -t 8 --node-id ${HOSTNAME:3} --node-count 5 /data/software/dummy-data-generator/testOut'
+sbc1: Starting generation of 1000 files (100.00 KB each)
+sbc1: Using 8 threads
+sbc1: Created /data/software/dummy-data-generator/testOut/dummy_n1_1.dat (100.00 KB)
+...
+sbc3: Created /data/software/dummy-data-generator/testOut/dummy_n3_1873.dat (100.00 KB)
+sbc3: 
+sbc3: Completed in 13.88 seconds
+sbc3: 
+sbc3: Cluster-wide status:
+sbc3: - Total files created: 4940/5000
+sbc3: - Completion: 98.8%
+sbc3: - Active nodes: 5/5
+sbc3: - Total throughput: 112.39 MB/s
+sbc3: - Files per second: 1150.91 files/s
+sbc3: Total data generated: 0.10 GB
+sbc3: Throughput: 0.01 GB/s
+sbc4: Created /data/software/dummy-data-generator/testOut/dummy_n4_1794.dat (100.00 KB)
+...
+sbc0: Created /data/software/dummy-data-generator/testOut/dummy_n0_3120.dat (100.00 KB)
+sbc0: 
+sbc0: Completed in 14.33 seconds
+sbc0: 
+sbc0: Cluster-wide status:
+sbc0: - Total files created: 5000/5000
+sbc0: - Completion: 100.0%
+sbc0: - Active nodes: 5/5
+sbc0: - Total throughput: 336.45 MB/s
+sbc0: - Files per second: 3445.27 files/s
+sbc0: Total data generated: 0.10 GB
+sbc0: Throughput: 0.01 GB/s
+```
+
 ## Performance Tips
 
 1. For best performance:
@@ -88,8 +126,8 @@ python -c "from dummy_data_generator import DummyDataGenerator; print(DummyDataG
    - Distribute load across multiple nodes
 
 2. Expected performance:
-   - SSD: 200-500 MB/s per node
-   - HDD: 50-150 MB/s per node
+   - SSD: 200-500 MB/s per SSD per node
+   - HDD: 50-150 MB/s per HDD per node
    - Scale linearly with node count
 
 ## Troubleshooting
@@ -106,6 +144,11 @@ python -c "from dummy_data_generator import DummyDataGenerator; print(DummyDataG
   - Reduce thread count if CPU-bound
   - Check for network latency (if using shared storage)
 
-## License
+## CHANGELOG
 
-[MIT License](LICENSE)
+### Version 1.1
+- Performance improvements:
+  - Pre-generate and reuse random data buffer instead of generating for each file
+  - Increased file write buffer size to 1MB for better I/O performance
+  - Improved files per second calculation for more accurate reporting
+- Added version number and improved help output formatting
