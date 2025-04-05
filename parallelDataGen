@@ -3,12 +3,22 @@ import os
 import random
 import threading
 import argparse
+import fcntl
 
-__version__ = '1.1'
+__version__ = '1.2'
 import json
 import sys
 import platform
-import fcntl
+import mmap
+
+# Constants for direct I/O
+if hasattr(os, 'O_DIRECT'):
+    O_DIRECT = os.O_DIRECT
+else:
+    O_DIRECT = 0o40000  # Value on most Linux systems
+
+# Block size for direct I/O (4KB is common)
+BLOCK_SIZE = 4096
 
 # Optional psutil import for enhanced system metrics
 try:
@@ -22,7 +32,8 @@ from datetime import datetime
 from multiprocessing import cpu_count
 
 class DummyDataGenerator:
-    def __init__(self, output_dir, num_files, file_size_kb, thread_count=None, node_id=0, node_count=1):
+    def __init__(self, output_dir, num_files, file_size_kb, thread_count=None, node_id=0, node_count=1, direct_io=False):
+        self.direct_io = direct_io
         self.output_dir = Path(output_dir)
         self.num_files = num_files
         self.file_size_bytes = file_size_kb * 1024
@@ -38,11 +49,19 @@ class DummyDataGenerator:
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
         # Pre-generate random data buffer
+        # For direct I/O: ensure buffer size is a multiple of block size
+        if self.direct_io:
+            self.file_size_bytes = ((self.file_size_bytes + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
         self.data_buffer = self.generate_random_data(self.file_size_bytes)
 
     def generate_random_data(self, size):
         """Generate random binary data of given size"""
-        return bytes(random.getrandbits(8) for _ in range(size))
+        if self.direct_io:
+            # Allocate aligned memory using mmap for direct I/O
+            mm = mmap.mmap(-1, size)
+            mm.write(os.urandom(size))
+            return mm
+        return os.urandom(size)
 
     def create_file(self, file_num):
         """Create a single dummy file"""
@@ -55,9 +74,21 @@ class DummyDataGenerator:
                 print(f"Warning: {file_path} already exists, skipping")
             return
         try:
-            # Use a larger buffer size for better performance
-            with open(file_path, 'wb', buffering=1024*1024) as f:
-                f.write(self.data_buffer)
+            if self.direct_io:
+                # Open with O_DIRECT flag
+                fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_DIRECT)
+                try:
+                    if isinstance(self.data_buffer, mmap.mmap):
+                        self.data_buffer.seek(0)
+                    os.write(fd, self.data_buffer)
+                finally:
+                    os.close(fd)
+            else:
+                # Standard buffered I/O
+                with open(file_path, 'wb', buffering=1024*1024) as f:
+                    if isinstance(self.data_buffer, mmap.mmap):
+                        self.data_buffer.seek(0)
+                    f.write(self.data_buffer)
             with self.lock:
                 print(f"Created {file_path} ({self.file_size_bytes/1024:.2f} KB)")
                 self.files_created += 1
@@ -245,6 +276,8 @@ def main():
                        help='Node identifier (0-based) for distributed runs')
     parser.add_argument('--node-count', type=int, default=1,
                        help='Total number of nodes in distributed run')
+    parser.add_argument('--direct-io', action='store_true',
+                       help='Use direct I/O for file writes (bypasses OS cache, requires aligned buffers)')
     
     args = parser.parse_args()
     
@@ -254,7 +287,8 @@ def main():
         file_size_kb=args.size_kb,
         thread_count=args.threads,
         node_id=args.node_id,
-        node_count=args.node_count
+        node_count=args.node_count,
+        direct_io=args.direct_io
     )
     generator.run()
 

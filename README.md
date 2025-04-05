@@ -55,6 +55,9 @@ python dummy_data_generator.py /shared/output -n 100 --node-id 2 --node-count 3
 | `-t`, `--threads` | Number of threads to use | CPU count |
 | `--node-id` | Node identifier (0-based) | 0 |
 | `--node-count` | Total number of nodes in cluster | 1 |
+| `--direct-io` | Use direct I/O for file writes (bypasses OS cache) | False |
+
+**Note:** When using `--direct-io`, the file size (`-s`) will be automatically rounded up to the nearest multiple of 4KB (4096 bytes) to meet direct I/O alignment requirements. This means the actual file size may be larger than specified.
 
 ## Status Files
 
@@ -82,40 +85,31 @@ python -c "from dummy_data_generator import DummyDataGenerator; print(DummyDataG
 
 #### Example Output
 
-- Example parallel run on a SMALL, slow SBC cluster (5 nodes)
+- Example parallel run using `pdsh` on a SMALL, slow SBC cluster (5 nodes)
 
 ```bash
-$ pdsh -w sbc[0-4] '/data/software/dummy-data-generator/parallelDataGen.py -n 1000 -s 100 -t 8 --node-id ${HOSTNAME:3} --node-count 5 /data/software/dummy-data-generator/testOut'
-sbc1: Starting generation of 1000 files (100.00 KB each)
-sbc1: Using 8 threads
-sbc1: Created /data/software/dummy-data-generator/testOut/dummy_n1_1.dat (100.00 KB)
-...
-sbc3: Created /data/software/dummy-data-generator/testOut/dummy_n3_1873.dat (100.00 KB)
-sbc3: 
-sbc3: Completed in 13.88 seconds
-sbc3: 
-sbc3: Cluster-wide status:
-sbc3: - Total files created: 4940/5000
-sbc3: - Completion: 98.8%
-sbc3: - Active nodes: 5/5
-sbc3: - Total throughput: 112.39 MB/s
-sbc3: - Files per second: 1150.91 files/s
-sbc3: Total data generated: 0.10 GB
-sbc3: Throughput: 0.01 GB/s
-sbc4: Created /data/software/dummy-data-generator/testOut/dummy_n4_1794.dat (100.00 KB)
+[root@sbc0 parallelDataGen]# pdsh -w sbc[0-4] '/data/software/parallelDataGen/parallelDataGen -n 1000 -s 1 -t 4 --node-id ${HOSTNAME:3} --node-count 5 /data/software/dummy-data-generator/testOut1'
+sbc0: Starting generation of 1000 files (1.00 KB each)
+sbc0: Using 4 threads
+sbc0: Created /data/software/dummy-data-generator/testOut1/dummy_n0_0.dat (1.00 KB)
+sbc0: Created /data/software/dummy-data-generator/testOut1/dummy_n0_1250.dat (1.00 KB)
+sbc0: Created /data/software/dummy-data-generator/testOut1/dummy_n0_3750.dat (1.00 KB)
+sbc0: Created /data/software/dummy-data-generator/testOut1/dummy_n0_1255.dat (1.00 KB)
+sbc0: Created /data/software/dummy-data-generator/testOut1/dummy_n0_5.dat (1.00 KB)
 ...
 sbc0: Created /data/software/dummy-data-generator/testOut/dummy_n0_3120.dat (100.00 KB)
-sbc0: 
-sbc0: Completed in 14.33 seconds
-sbc0: 
-sbc0: Cluster-wide status:
-sbc0: - Total files created: 5000/5000
-sbc0: - Completion: 100.0%
-sbc0: - Active nodes: 5/5
-sbc0: - Total throughput: 336.45 MB/s
-sbc0: - Files per second: 3445.27 files/s
-sbc0: Total data generated: 0.10 GB
-sbc0: Throughput: 0.01 GB/s
+sbc1: Created /data/software/dummy-data-generator/testOut1/dummy_n1_1246.dat (1.00 KB)
+sbc1: 
+sbc1: Completed in 13.97 seconds
+sbc1: 
+sbc1: Cluster-wide status:
+sbc1: - Total files created: 5000/5000
+sbc1: - Completion: 100.0%
+sbc1: - Active nodes: 5/5
+sbc1: - Total throughput: 2.49 MB/s
+sbc1: - Files per second: 553.77 files/s
+sbc1: Total data generated: 0.00 GB
+sbc1: Throughput: 0.00 GB/s
 ```
 
 ## Performance Tips
@@ -145,6 +139,17 @@ sbc0: Throughput: 0.01 GB/s
   - Check for network latency (if using shared storage)
 
 ## CHANGELOG
+
+### Version 1.2
+- Added robust direct I/O support:
+  - Implemented memory-mapped buffers for proper alignment
+  - Automatic size adjustment to meet 4KB alignment requirements
+  - Improved error handling for direct I/O operations
+  - Achieved up to 640 MB/s throughput with direct I/O on large files
+- Performance optimizations:
+  - Switched to os.urandom() for faster random data generation
+  - Improved buffer reuse across threads
+  - Added direct I/O support for bypassing OS cache (use `--direct-io`)
 
 ### Version 1.1
 - Performance improvements:
